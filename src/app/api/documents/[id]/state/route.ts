@@ -30,7 +30,7 @@ export async function GET(
     });
   }
 
-  return new NextResponse(document.yjsState, {
+  return new NextResponse(new Uint8Array(document.yjsState), {
     headers: { "Content-Type": "application/octet-stream" },
   });
 }
