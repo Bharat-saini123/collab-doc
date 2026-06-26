@@ -238,6 +238,6 @@ GitHub Actions workflow at `.github/workflows/ci.yml`:
 
 ## 👤 Author
 
-- **Name**: Your Name
-- **GitHub**: [github.com/yourusername](https://github.com/yourusername)
-- **LinkedIn**: [linkedin.com/in/yourusername](https://linkedin.com/in/yourusername)
+- **Name**: Bharat saini
+- **GitHub**: [github.com/Bharat-saini123](https://github.com/Bharat-saini123)
+- **LinkedIn**: [linkedin.com/in/bharat-saini-146412273/](https://www.linkedin.com/in/bharat-saini-146412273/)
