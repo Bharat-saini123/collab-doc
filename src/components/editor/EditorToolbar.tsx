@@ -76,8 +76,8 @@ export default function EditorToolbar({ editor }: Props) {
       <div className="w-px h-5 bg-slate-200 mx-1" />
 
       {/* History */}
-      <button onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} className={btn(false)} title="Undo">↩</button>
-      <button onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} className={btn(false)} title="Redo">↪</button>
+      <button onClick={() => { try { editor.chain().focus().undo().run(); } catch { /* no-op if undo unavailable */ } }} disabled={false} className={btn(false)} title="Undo">↩</button>
+      <button onClick={() => { try { editor.chain().focus().redo().run(); } catch { /* no-op if redo unavailable */ } }} disabled={false} className={btn(false)} title="Redo">↪</button>
     </div>
   );
 }
