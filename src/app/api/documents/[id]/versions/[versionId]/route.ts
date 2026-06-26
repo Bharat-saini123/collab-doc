@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth/auth";
+import { prisma } from "@/lib/db/prisma";
+
+// GET a specific version's Yjs snapshot (for preview or restore)
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string; versionId: string } }
+) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const hasAccess = await prisma.documentCollaborator.findUnique({
+    where: { documentId_userId: { documentId: params.id, userId: session.user.id } },
+  });
+  if (!hasAccess) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const version = await prisma.documentVersion.findFirst({
+    where: { id: params.versionId, documentId: params.id },
+  });
+  if (!version) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Return snapshot as base64 so client can apply it
+  return NextResponse.json({
+    id: version.id,
+    title: version.title,
+    snapshot: version.yjsSnapshot.toString("base64"),
+    createdAt: version.createdAt,
+  });
+}
+
+// POST /restore — restore document to this version
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { id: string; versionId: string } }
+) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const collaborator = await prisma.documentCollaborator.findUnique({
+    where: { documentId_userId: { documentId: params.id, userId: session.user.id } },
+  });
+  if (!collaborator || collaborator.role === "VIEWER") {
+    return NextResponse.json({ error: "Write access denied" }, { status: 403 });
+  }
+
+  const version = await prisma.documentVersion.findFirst({
+    where: { id: params.versionId, documentId: params.id },
+  });
+  if (!version) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Auto-save current state as a version before restoring
+  const currentDoc = await prisma.document.findUnique({ where: { id: params.id } });
+  if (currentDoc?.yjsState) {
+    await prisma.documentVersion.create({
+      data: {
+        documentId: params.id,
+        createdById: session.user.id,
+        title: `Auto-save before restore (${new Date().toLocaleString()})`,
+        yjsSnapshot: currentDoc.yjsState,
+        summary: "Automatically saved before restoring a previous version",
+      },
+    });
+  }
+
+  // Restore: replace server document state with the version snapshot
+  await prisma.document.update({
+    where: { id: params.id },
+    data: { yjsState: version.yjsSnapshot },
+  });
+
+  return NextResponse.json({ ok: true, snapshot: version.yjsSnapshot.toString("base64") });
+}
