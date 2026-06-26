@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 const createVersionSchema = z.object({
@@ -76,7 +77,7 @@ export async function POST(
       createdById: session.user.id,
       title: parsed.data.title,
       yjsSnapshot,
-      contentJson: parsed.data.contentJson,
+      contentJson: parsed.data.contentJson as Prisma.InputJsonValue | undefined,
     },
     include: { createdBy: { select: { name: true, image: true } } },
   });
