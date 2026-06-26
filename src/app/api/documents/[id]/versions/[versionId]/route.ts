@@ -5,18 +5,19 @@ import { prisma } from "@/lib/db/prisma";
 // GET a specific version's Yjs snapshot (for preview or restore)
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string; versionId: string } }
+  { params }: { params: Promise<{ id: string; versionId: string }> }
 ) {
+  const { id, versionId } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const hasAccess = await prisma.documentCollaborator.findUnique({
-    where: { documentId_userId: { documentId: params.id, userId: session.user.id } },
+    where: { documentId_userId: { documentId: id, userId: session.user.id } },
   });
   if (!hasAccess) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const version = await prisma.documentVersion.findFirst({
-    where: { id: params.versionId, documentId: params.id },
+    where: { id: versionId, documentId: id },
   });
   if (!version) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -32,29 +33,30 @@ export async function GET(
 // POST /restore — restore document to this version
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; versionId: string } }
+  { params }: { params: Promise<{ id: string; versionId: string }> }
 ) {
+  const { id, versionId } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const collaborator = await prisma.documentCollaborator.findUnique({
-    where: { documentId_userId: { documentId: params.id, userId: session.user.id } },
+    where: { documentId_userId: { documentId: id, userId: session.user.id } },
   });
   if (!collaborator || collaborator.role === "VIEWER") {
     return NextResponse.json({ error: "Write access denied" }, { status: 403 });
   }
 
   const version = await prisma.documentVersion.findFirst({
-    where: { id: params.versionId, documentId: params.id },
+    where: { id: versionId, documentId: id },
   });
   if (!version) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Auto-save current state as a version before restoring
-  const currentDoc = await prisma.document.findUnique({ where: { id: params.id } });
+  const currentDoc = await prisma.document.findUnique({ where: { id } });
   if (currentDoc?.yjsState) {
     await prisma.documentVersion.create({
       data: {
-        documentId: params.id,
+        documentId: id,
         createdById: session.user.id,
         title: `Auto-save before restore (${new Date().toLocaleString()})`,
         yjsSnapshot: currentDoc.yjsState,
@@ -65,7 +67,7 @@ export async function POST(
 
   // Restore: replace server document state with the version snapshot
   await prisma.document.update({
-    where: { id: params.id },
+    where: { id },
     data: { yjsState: version.yjsSnapshot },
   });
 
