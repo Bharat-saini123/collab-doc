@@ -9,13 +9,14 @@ const inviteSchema = z.object({
 });
 
 // Invite collaborator
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Only owner can invite
   const doc = await prisma.document.findFirst({
-    where: { id: params.id, ownerId: session.user.id },
+    where: { id, ownerId: session.user.id },
   });
   if (!doc) return NextResponse.json({ error: "Only the owner can invite collaborators" }, { status: 403 });
 
@@ -29,9 +30,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (invitee.id === session.user.id) return NextResponse.json({ error: "Cannot invite yourself" }, { status: 400 });
 
   const collab = await prisma.documentCollaborator.upsert({
-    where: { documentId_userId: { documentId: params.id, userId: invitee.id } },
+    where: { documentId_userId: { documentId: id, userId: invitee.id } },
     update: { role: parsed.data.role },
-    create: { documentId: params.id, userId: invitee.id, role: parsed.data.role },
+    create: { documentId: id, userId: invitee.id, role: parsed.data.role },
     include: { user: { select: { id: true, name: true, image: true } } },
   });
 
@@ -39,18 +40,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 // Update role
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const doc = await prisma.document.findFirst({ where: { id: params.id, ownerId: session.user.id } });
+  const doc = await prisma.document.findFirst({ where: { id, ownerId: session.user.id } });
   if (!doc) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { userId, role } = await req.json();
   if (!userId || !["EDITOR", "VIEWER"].includes(role)) return NextResponse.json({ error: "Invalid" }, { status: 400 });
 
   await prisma.documentCollaborator.update({
-    where: { documentId_userId: { documentId: params.id, userId } },
+    where: { documentId_userId: { documentId: id, userId } },
     data: { role },
   });
 
@@ -58,18 +60,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // Remove collaborator
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const doc = await prisma.document.findFirst({ where: { id: params.id, ownerId: session.user.id } });
+  const doc = await prisma.document.findFirst({ where: { id, ownerId: session.user.id } });
   if (!doc) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { userId } = await req.json();
   if (!userId) return NextResponse.json({ error: "Invalid" }, { status: 400 });
 
   await prisma.documentCollaborator.delete({
-    where: { documentId_userId: { documentId: params.id, userId } },
+    where: { documentId_userId: { documentId: id, userId } },
   });
 
   return NextResponse.json({ ok: true });

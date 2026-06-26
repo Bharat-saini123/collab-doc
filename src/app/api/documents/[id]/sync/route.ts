@@ -6,8 +6,9 @@ const MAX_PAYLOAD = 1_000_000; // 1MB hard limit — OOM prevention
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -20,7 +21,7 @@ export async function POST(
   // Verify user has EDITOR or OWNER role (not VIEWER)
   const collaborator = await prisma.documentCollaborator.findUnique({
     where: {
-      documentId_userId: { documentId: params.id, userId: session.user.id },
+      documentId_userId: { documentId: id, userId: session.user.id },
     },
   });
 
@@ -31,7 +32,7 @@ export async function POST(
   // Check document exists (RLS: user must have access)
   const document = await prisma.document.findFirst({
     where: {
-      id: params.id,
+      id,
       OR: [
         { ownerId: session.user.id },
         { collaborators: { some: { userId: session.user.id } } },
@@ -56,14 +57,14 @@ export async function POST(
 
   // Store in DB
   await prisma.document.update({
-    where: { id: params.id },
+    where: { id },
     data: { yjsState, updatedAt: new Date() },
   });
 
   // Log operation for audit trail
   await prisma.operation.create({
     data: {
-      documentId: params.id,
+      documentId: id,
       userId: session.user.id,
       type: "sync",
       payload: { size: yjsState.byteLength },

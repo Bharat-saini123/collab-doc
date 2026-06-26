@@ -11,18 +11,19 @@ const createVersionSchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const hasAccess = await prisma.documentCollaborator.findUnique({
-    where: { documentId_userId: { documentId: params.id, userId: session.user.id } },
+    where: { documentId_userId: { documentId: id, userId: session.user.id } },
   });
   if (!hasAccess) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const versions = await prisma.documentVersion.findMany({
-    where: { documentId: params.id },
+    where: { documentId: id },
     include: { createdBy: { select: { name: true, image: true } } },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -42,13 +43,14 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const collaborator = await prisma.documentCollaborator.findUnique({
-    where: { documentId_userId: { documentId: params.id, userId: session.user.id } },
+    where: { documentId_userId: { documentId: id, userId: session.user.id } },
   });
   if (!collaborator || collaborator.role === "VIEWER") {
     return NextResponse.json({ error: "Write access denied" }, { status: 403 });
@@ -70,7 +72,7 @@ export async function POST(
 
   const version = await prisma.documentVersion.create({
     data: {
-      documentId: params.id,
+      documentId: id,
       createdById: session.user.id,
       title: parsed.data.title,
       yjsSnapshot,
