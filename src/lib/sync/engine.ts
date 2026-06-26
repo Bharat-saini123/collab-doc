@@ -110,7 +110,7 @@ export class SyncEngine {
       const res = await fetch(`/api/documents/${this.documentId}/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/octet-stream" },
-        body: currentState,
+        body: currentState.buffer as ArrayBuffer,
       });
 
       if (!res.ok) throw new Error(`Sync failed: ${res.status}`);
