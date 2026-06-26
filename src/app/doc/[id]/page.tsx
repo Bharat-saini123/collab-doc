@@ -3,13 +3,14 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db/prisma";
 import DocPageClient from "./client";
 
-export default async function DocPage({ params }: { params: { id: string } }) {
+export default async function DocPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) redirect("/auth/login");
 
   const document = await prisma.document.findFirst({
     where: {
-      id: params.id,
+      id,
       OR: [
         { ownerId: session.user.id },
         { collaborators: { some: { userId: session.user.id } } },
