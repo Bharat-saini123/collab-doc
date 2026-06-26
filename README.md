@@ -8,7 +8,9 @@ A production-grade, real-time collaborative document editor built with Next.js 1
 
 ## 🚀 Live Demo
 
-**[collabdoc.vercel.app](https://collabdoc.vercel.app)** ← Replace with your deployed URL
+https://collab-doc-bice.vercel.app/
+
+URL
 
 ---
 
