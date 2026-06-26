@@ -77,15 +77,15 @@ export default async function HomePage() {
       <footer className="border-t border-white/10 py-6 px-8 text-center text-slate-500 text-sm">
         <p>
           Built by{" "}
-          <a href="https://github.com/yourusername" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">
-            Your Name
+          <a href="https://github.com/Bharat-saini123" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">
+            Bharat Saini
           </a>{" "}
           ·{" "}
-          <a href="https://github.com/yourusername/collab-doc" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">
+          <a href="https://github.com/Bharat-saini123/collab-doc" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">
             GitHub
           </a>{" "}
           ·{" "}
-          <a href="https://linkedin.com/in/yourusername" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">
+          <a href="https://www.linkedin.com/in/bharat-saini-146412273/" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">
             LinkedIn
           </a>
         </p>
