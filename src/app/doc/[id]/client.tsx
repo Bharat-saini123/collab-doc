@@ -38,6 +38,7 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("synced");
   const [pendingCount, setPendingCount] = useState(0);
+  const [ydoc, setYdoc] = useState<Y.Doc | null>(null);
 
   const ydocRef = useRef<Y.Doc | null>(null);
   const persistenceRef = useRef<IndexeddbPersistence | null>(null);
@@ -46,17 +47,15 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
   const isOnline = useOnlineStatus();
   const canEdit = role === "OWNER" || role === "EDITOR";
 
-  // Initialize Yjs document
   useEffect(() => {
-    const ydoc = new Y.Doc();
-    ydocRef.current = ydoc;
+    const newYdoc = new Y.Doc();
+    ydocRef.current = newYdoc;
+    setYdoc(newYdoc);
 
-    // IndexedDB persistence (local-first)
-    const persistence = new IndexeddbPersistence(`collab-doc-${initialDoc.id}`, ydoc);
+    const persistence = new IndexeddbPersistence(`collab-doc-${initialDoc.id}`, newYdoc);
     persistenceRef.current = persistence;
 
     persistence.on("synced", async () => {
-      // After local data loaded, fetch + merge server state
       if (navigator.onLine) {
         try {
           const res = await fetch(`/api/documents/${initialDoc.id}/state`);
@@ -64,7 +63,7 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
             const buffer = await res.arrayBuffer();
             const serverState = new Uint8Array(buffer);
             if (serverState.byteLength > 0) {
-              Y.applyUpdate(ydoc, serverState);
+              Y.applyUpdate(newYdoc, serverState, "server");
             }
           }
         } catch (e) {
@@ -73,14 +72,12 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
       }
     });
 
-    // Setup sync engine
-    const engine = new SyncEngine(initialDoc.id, user.id, ydoc, (status) => {
+    const engine = new SyncEngine(initialDoc.id, user.id, newYdoc, (status) => {
       setSyncStatus(status);
     });
     syncEngineRef.current = engine;
 
-    // Queue updates on every change
-    ydoc.on("update", async (update: Uint8Array, origin: unknown) => {
+    newYdoc.on("update", async (update: Uint8Array, origin: unknown) => {
       if (origin === "server" || !canEdit) return;
       await engine.queueUpdate(update);
       const count = await engine.getPendingCount();
@@ -90,37 +87,43 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
     return () => {
       engine.destroy();
       persistence.destroy();
-      ydoc.destroy();
+      newYdoc.destroy();
       syncEngineRef.current = null;
       persistenceRef.current = null;
       ydocRef.current = null;
+      setYdoc(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDoc.id, user.id]);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ history: false }),
-      ...(ydocRef.current ? [Collaboration.configure({ document: ydocRef.current })] : []),
-      Placeholder.configure({ placeholder: "Start writing your document…" }),
-      Underline,
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Highlight,
-      TaskList,
-      TaskItem.configure({ nested: true }),
-    ],
-    editable: canEdit,
-    editorProps: {
-      attributes: {
-        class: "focus:outline-none",
-        "aria-label": "Document editor",
-        role: "textbox",
-        "aria-multiline": "true",
+  const editor = useEditor(
+    {
+      immediatelyRender: false,
+      extensions: [
+        StarterKit.configure({
+          history: false,
+        }),
+        Placeholder.configure({ placeholder: "Start writing your document…" }),
+        Underline,
+        TextAlign.configure({ types: ["heading", "paragraph"] }),
+        Highlight,
+        TaskList,
+        TaskItem.configure({ nested: true }),
+        ...(ydoc ? [Collaboration.configure({ document: ydoc })] : []),
+      ],
+      editable: canEdit,
+      editorProps: {
+        attributes: {
+          class: "focus:outline-none",
+          "aria-label": "Document editor",
+          role: "textbox",
+          "aria-multiline": "true",
+        },
       },
     },
-  });
+    [ydoc]
+  );
 
-  // Debounced title save
   const handleTitleChange = useCallback((newTitle: string) => {
     setTitle(newTitle);
     if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
@@ -138,7 +141,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
     }, 800);
   }, [initialDoc.id]);
 
-  // Restore from version
   const handleRestore = useCallback((snapshot: Uint8Array) => {
     if (!ydocRef.current) return;
     applyServerUpdate(ydocRef.current, snapshot);
@@ -160,7 +162,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
   const refreshDoc = useCallback(async () => {
     const res = await fetch(`/api/documents/${initialDoc.id}/state`);
     if (res.ok) {
-      // Refresh collaborators list
       const docRes = await fetch(`/api/documents`);
       if (docRes.ok) {
         const docs = await docRes.json();
@@ -176,7 +177,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
 
   return (
     <div className="flex flex-col h-screen bg-white">
-      {/* Top navigation */}
       <header className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white shrink-0 z-10">
         <Link href="/dashboard" className="text-slate-500 hover:text-slate-800 transition-colors p-1.5 rounded-lg hover:bg-slate-100" title="Back to dashboard">
           ←
@@ -199,7 +199,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Role badge */}
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${
             role === "OWNER" ? "bg-purple-100 text-purple-700" :
             role === "EDITOR" ? "bg-blue-100 text-blue-700" :
@@ -208,7 +207,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
             {role}
           </span>
 
-          {/* Network + sync status */}
           <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-red-500"}`} title={isOnline ? "Online" : "Offline"} />
             <SyncStatusIndicator status={isOnline ? syncStatus : "offline"} pendingCount={pendingCount} />
@@ -216,7 +214,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
 
           <div className="w-px h-5 bg-slate-200" />
 
-          {/* Panel toggles */}
           {canEdit && (
             <button
               onClick={() => togglePanel("ai")}
@@ -241,7 +238,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
             👥
           </button>
 
-          {/* User avatar */}
           <div className="w-7 h-7 rounded-full bg-purple-200 flex items-center justify-center text-xs font-semibold text-purple-700 ml-1">
             {user.name?.[0]?.toUpperCase() || "U"}
           </div>
@@ -249,7 +245,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Main editor area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <EditorToolbar editor={editor} />
           {!canEdit && (
@@ -259,12 +254,15 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
           )}
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-16 py-12">
-              <EditorContent editor={editor} />
+              {editor ? (
+                <EditorContent editor={editor} />
+              ) : (
+                <div className="text-slate-400 text-sm">Loading editor…</div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Side panel */}
         {sidePanel && (
           <div className="w-80 border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden">
             <div className="flex items-center border-b border-slate-200 px-3 py-2 gap-1 shrink-0">
@@ -312,7 +310,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
         )}
       </div>
 
-      {/* Footer */}
       <footer className="border-t border-slate-100 py-2 px-6 text-center text-slate-400 text-xs shrink-0">
         Built by{" "}
         <a href="https://github.com/Bharat-saini123" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:underline">Bharat Saini</a>
