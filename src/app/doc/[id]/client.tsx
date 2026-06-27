@@ -92,7 +92,6 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
       ydocRef.current = null;
       setYdoc(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDoc.id, user.id]);
 
   const editor = useEditor(
@@ -143,18 +142,8 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
   const handleRestore = useCallback((snapshot: Uint8Array) => {
     const ydoc = ydocRef.current;
     if (!ydoc) return;
-
-    // Apply the snapshot update with "server" origin so sync engine ignores it.
-    // This merges all ops from the saved version into the current doc.
-    // Then clear IndexedDB so the next load fetches fresh server state,
-    // and reload the page to show the restored content cleanly.
     Y.applyUpdate(ydoc, snapshot, "server");
-
-    // Clear IndexedDB cache for this doc so fresh server state loads on reload
-    const dbName = `collab-doc-${initialDoc.id}`;
-    indexedDB.deleteDatabase(dbName);
-
-    // Reload to apply the restored state from server
+    indexedDB.deleteDatabase(`collab-doc-${initialDoc.id}`);
     setTimeout(() => window.location.reload(), 300);
   }, [initialDoc.id]);
 

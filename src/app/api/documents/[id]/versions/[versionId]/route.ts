@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 
-// GET a specific version's Yjs snapshot (for preview or restore)
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; versionId: string }> }
@@ -21,7 +20,6 @@ export async function GET(
   });
   if (!version) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Return snapshot as base64 so client can apply it
   return NextResponse.json({
     id: version.id,
     title: version.title,
@@ -30,7 +28,6 @@ export async function GET(
   });
 }
 
-// POST /restore — restore document to this version
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; versionId: string }> }
@@ -51,7 +48,6 @@ export async function POST(
   });
   if (!version) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Auto-save current state as a version before restoring
   const currentDoc = await prisma.document.findUnique({ where: { id } });
   if (currentDoc?.yjsState) {
     await prisma.documentVersion.create({
@@ -65,7 +61,6 @@ export async function POST(
     });
   }
 
-  // Restore: replace server document state with the version snapshot
   await prisma.document.update({
     where: { id },
     data: { yjsState: version.yjsSnapshot },
