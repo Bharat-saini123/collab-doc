@@ -17,6 +17,7 @@ export default function VersionHistory({ documentId, ydoc, onRestore, canEdit }:
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [versionTitle, setVersionTitle] = useState("");
+  const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
 
   const loadVersions = useCallback(async () => {
@@ -52,7 +53,7 @@ export default function VersionHistory({ documentId, ydoc, onRestore, canEdit }:
   }
 
   async function restoreVersion(versionId: string) {
-    if (!confirm("Restore this version? Current state will be auto-saved first.")) return;
+    setConfirmRestore(null);
     setRestoring(versionId);
     try {
       const res = await fetch(`/api/documents/${documentId}/versions/${versionId}`, {
@@ -63,7 +64,12 @@ export default function VersionHistory({ documentId, ydoc, onRestore, canEdit }:
         const snapshot = new Uint8Array(Buffer.from(data.snapshot, "base64"));
         onRestore(snapshot);
         loadVersions();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Restore failed: ${JSON.stringify(err)}`);
       }
+    } catch (e) {
+      alert(`Restore error: ${e}`);
     } finally {
       setRestoring(null);
     }
@@ -115,13 +121,40 @@ export default function VersionHistory({ documentId, ydoc, onRestore, canEdit }:
                 </div>
               </div>
               {canEdit && (
-                <button
-                  onClick={() => restoreVersion(v.id)}
-                  disabled={restoring === v.id}
-                  className="mt-2 w-full border border-purple-200 text-purple-600 hover:bg-purple-50 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                >
-                  {restoring === v.id ? "Restoring…" : "↩ Restore this version"}
-                </button>
+                confirmRestore === v.id ? (
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
+                      Current state will be auto-saved first. Confirm restore?
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => restoreVersion(v.id)}
+                        disabled={restoring === v.id}
+                        className="flex-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      >
+                        {restoring === v.id ? "Restoring…" : "✓ Yes, Restore"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRestore(null)}
+                        disabled={restoring === v.id}
+                        className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-50 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmRestore(v.id)}
+                    disabled={restoring !== null}
+                    className="mt-2 w-full border border-purple-200 text-purple-600 hover:bg-purple-50 disabled:opacity-40 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  >
+                    ↩ Restore this version
+                  </button>
+                )
               )}
             </div>
           ))

@@ -14,7 +14,6 @@ import TaskItem from "@tiptap/extension-task-item";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import { SyncEngine } from "@/lib/sync/engine";
-import { applyServerUpdate } from "@/lib/yjs/provider";
 import EditorToolbar from "@/components/editor/EditorToolbar";
 import SyncStatusIndicator from "@/components/ui/SyncStatusIndicator";
 import VersionHistory from "@/components/sidebar/VersionHistory";
@@ -142,9 +141,22 @@ export default function DocPageClient({ document: initialDoc, user, role }: Prop
   }, [initialDoc.id]);
 
   const handleRestore = useCallback((snapshot: Uint8Array) => {
-    if (!ydocRef.current) return;
-    applyServerUpdate(ydocRef.current, snapshot);
-  }, []);
+    const ydoc = ydocRef.current;
+    if (!ydoc) return;
+
+    // Apply the snapshot update with "server" origin so sync engine ignores it.
+    // This merges all ops from the saved version into the current doc.
+    // Then clear IndexedDB so the next load fetches fresh server state,
+    // and reload the page to show the restored content cleanly.
+    Y.applyUpdate(ydoc, snapshot, "server");
+
+    // Clear IndexedDB cache for this doc so fresh server state loads on reload
+    const dbName = `collab-doc-${initialDoc.id}`;
+    indexedDB.deleteDatabase(dbName);
+
+    // Reload to apply the restored state from server
+    setTimeout(() => window.location.reload(), 300);
+  }, [initialDoc.id]);
 
   const getSelectedText = useCallback(() => {
     if (!editor) return "";
